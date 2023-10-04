@@ -1,0 +1,68 @@
+version: '3'
+services:
+  app-proxy:
+    image: nginx:latest
+    ports:
+      - "8100:8100"
+      - "3003:3003"
+    volumes:
+      - './proxy/nginx-configs/default.conf:/etc/nginx/nginx.conf'
+      - './proxy/nginx-configs/backend.conf:/etc/nginx/conf.d/backend.conf'
+      - './proxy/nginx-configs/frontend.conf:/etc/nginx/conf.d/frontend.conf'
+      - './proxy/ssl:/etc/nginx/ssl'
+      - './proxy/nginx-log/access.log:/var/log/nginx/access.log'
+      - './proxy/nginx-log/error.log:/var/log/nginx/error.log'
+    restart: always
+    networks:
+      - app-network
+    environment:
+      - FRONTEND_SERVER=app-frontend
+      - BACKEND_SERVER=app-backend
+
+  app-backend:
+    build:
+      context: ./backend/
+      dockerfile: Dockerfile
+    image: pddikti/new_feeder-backend
+    expose:
+      - 3003
+    networks:
+      - app-network
+    deploy:
+      mode: replicated
+      replicas: 4
+      endpoint_mode: vip
+
+  app-frontend:
+    image: nginx:latest
+    volumes:
+      # - './frontend/nginx/nginx.conf:/etc/nginx/nginx.conf'
+      # - './frontend/app:/app'
+      - './frontend/app/public:/usr/share/nginx/html'
+    restart: always
+    expose:
+      - 80
+    networks:
+      - app-network
+
+  db-pddikti:
+    image: postgres:12
+    container_name: db-pddikti
+    environment:
+      TZ: "Asia/Jakarta"
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "54333:54333"
+    volumes:
+      - './pgsql/data:/var/lib/postgresql/data'
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.167.150.0/24
